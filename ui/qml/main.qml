@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "components"
 
 ApplicationWindow {
     id: root
@@ -8,6 +9,9 @@ ApplicationWindow {
     height: 800
     visible: true
     title: "ModelShelf 🙂"
+
+    // Navigation state
+    property string currentView: "discover"
 
     // Main layout
     RowLayout {
@@ -39,15 +43,20 @@ ApplicationWindow {
                 // Navigation buttons
                 NavButton {
                     text: "Discover"
-                    isActive: true
+                    isActive: currentView === "discover"
+                    onClicked: currentView = "discover"
                 }
 
                 NavButton {
                     text: "Downloads"
+                    isActive: currentView === "downloads"
+                    onClicked: currentView = "downloads"
                 }
 
                 NavButton {
                     text: "Shelf"
+                    isActive: currentView === "shelf"
+                    onClicked: currentView = "shelf"
                 }
 
                 Item {
@@ -56,46 +65,60 @@ ApplicationWindow {
 
                 NavButton {
                     text: "Settings"
+                    isActive: currentView === "settings"
+                    onClicked: currentView = "settings"
                 }
 
                 NavButton {
                     text: "About"
+                    isActive: currentView === "about"
+                    onClicked: currentView = "about"
                 }
             }
         }
 
-        // Main content area
-        Rectangle {
+        // Main content area with view switching
+        StackLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "#ecf0f1"
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 20
-
-                Label {
-                    text: "Welcome to ModelShelf"
-                    font.pixelSize: 24
-                    font.bold: true
+            currentIndex: {
+                switch(currentView) {
+                    case "discover": return 0
+                    case "downloads": return 1
+                    case "shelf": return 2
+                    case "settings": return 3
+                    case "about": return 4
+                    default: return 0
                 }
+            }
 
-                Label {
-                    text: "Download once. Organise forever."
-                    font.pixelSize: 14
-                    color: "#7f8c8d"
-                }
+            // Discover view
+            DiscoverView {
+                id: discoverView
+            }
 
-                Item {
-                    Layout.fillHeight: true
-                }
+            // Downloads view (placeholder)
+            PlaceholderView {
+                viewName: "Downloads"
+                description: "Download queue will appear here\n(Coming in M2)"
+            }
 
-                Label {
-                    text: "Skeleton UI loaded successfully (M0)"
-                    font.pixelSize: 12
-                    color: "#95a5a6"
-                    Layout.alignment: Qt.AlignHCenter
-                }
+            // Shelf view (placeholder)
+            PlaceholderView {
+                viewName: "Shelf"
+                description: "Your local model library\n(Coming in M3)"
+            }
+
+            // Settings view (placeholder)
+            PlaceholderView {
+                viewName: "Settings"
+                description: "Application settings\n(Coming in M4)"
+            }
+
+            // About view
+            PlaceholderView {
+                viewName: "About ModelShelf"
+                description: "Version 0.1.0-dev\nM1: Hub Browsing\n\nDownload once. Organise forever."
             }
         }
     }
@@ -124,6 +147,34 @@ ApplicationWindow {
         
         onHoveredChanged: {
             background.color = hovered ? "#34495e" : (isActive ? "#34495e" : "transparent")
+        }
+    }
+
+    // Placeholder view component
+    component PlaceholderView: Rectangle {
+        property string viewName: "View"
+        property string description: ""
+        
+        color: "#ecf0f1"
+
+        ColumnLayout {
+            anchors.centerIn: parent
+            spacing: 15
+
+            Label {
+                text: viewName
+                font.pixelSize: 24
+                font.bold: true
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+            Label {
+                text: description
+                font.pixelSize: 14
+                color: "#7f8c8d"
+                horizontalAlignment: Text.AlignHCenter
+                Layout.alignment: Qt.AlignHCenter
+            }
         }
     }
 }

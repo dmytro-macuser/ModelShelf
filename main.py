@@ -31,9 +31,10 @@ def main():
     
     try:
         from PySide6.QtWidgets import QApplication
-        from PySide6.QtQml import QQmlApplicationEngine
+        from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterType
         from PySide6.QtCore import QUrl
         from app.config import APP_NAME, APP_VERSION
+        from ui.controllers.discover_controller import DiscoverController
         
         # Create Qt application
         app = QApplication(sys.argv)
@@ -44,8 +45,18 @@ def main():
         # Create QML engine
         engine = QQmlApplicationEngine()
         
+        # Create controllers
+        discover_controller = DiscoverController()
+        
+        # Expose controllers to QML
+        engine.rootContext().setContextProperty("discoverController", discover_controller)
+        
+        # Add QML import paths
+        qml_dir = Path(__file__).parent / "ui" / "qml"
+        engine.addImportPath(str(qml_dir))
+        
         # Load main QML file
-        qml_file = Path(__file__).parent / "ui" / "qml" / "main.qml"
+        qml_file = qml_dir / "main.qml"
         
         if not qml_file.exists():
             logger.error(f"QML file not found: {qml_file}")
@@ -58,7 +69,7 @@ def main():
             return 1
         
         logger.info(f"{APP_NAME} v{APP_VERSION} initialized successfully")
-        logger.info("UI shell loaded (M0 complete)")
+        logger.info("M1: Discover functionality ready")
         
         # Run application event loop
         return app.exec()
