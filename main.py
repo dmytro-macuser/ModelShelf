@@ -8,13 +8,15 @@ import sys
 import logging
 from pathlib import Path
 
-# Set up logging
+# Configure logging
+from app.config import LOG_FILE
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('modelshelf.log')
+        logging.FileHandler(LOG_FILE)
     ]
 )
 
@@ -29,27 +31,37 @@ def main():
     
     try:
         from PySide6.QtWidgets import QApplication
-        from PySide6.QtGui import QIcon
+        from PySide6.QtQml import QQmlApplicationEngine
+        from PySide6.QtCore import QUrl
+        from app.config import APP_NAME, APP_VERSION
         
         # Create Qt application
         app = QApplication(sys.argv)
-        app.setApplicationName("ModelShelf")
-        app.setOrganizationName("ModelShelf")
-        app.setApplicationVersion("0.1.0-dev")
+        app.setApplicationName(APP_NAME)
+        app.setOrganizationName(APP_NAME)
+        app.setApplicationVersion(APP_VERSION)
         
-        # TODO: Load main window
-        logger.info("ModelShelf initialized successfully")
-        logger.info("Application ready (skeleton mode - M0)")
+        # Create QML engine
+        engine = QQmlApplicationEngine()
         
-        # For now, just show a message
-        from PySide6.QtWidgets import QMessageBox
-        QMessageBox.information(
-            None,
-            "ModelShelf",
-            "ModelShelf v0.1.0-dev\n\nSkeleton initialized successfully!\n\nNext: Implement UI shell (M0)"
-        )
+        # Load main QML file
+        qml_file = Path(__file__).parent / "ui" / "qml" / "main.qml"
         
-        return 0
+        if not qml_file.exists():
+            logger.error(f"QML file not found: {qml_file}")
+            return 1
+        
+        engine.load(QUrl.fromLocalFile(str(qml_file)))
+        
+        if not engine.rootObjects():
+            logger.error("Failed to load QML interface")
+            return 1
+        
+        logger.info(f"{APP_NAME} v{APP_VERSION} initialized successfully")
+        logger.info("UI shell loaded (M0 complete)")
+        
+        # Run application event loop
+        return app.exec()
         
     except ImportError as e:
         logger.error(f"Failed to import required modules: {e}")
@@ -57,6 +69,18 @@ def main():
         return 1
     except Exception as e:
         logger.error(f"Application error: {e}", exc_info=True)
+        
+        # Show error dialog if possible
+        try:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                None,
+                "ModelShelf Error",
+                f"An error occurred:\n\n{str(e)}\n\nCheck {LOG_FILE} for details."
+            )
+        except:
+            pass
+        
         return 1
 
 
