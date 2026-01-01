@@ -1,0 +1,19 @@
+# ModelShelf Requirements
+# Python 3.11+
+
+# UI Framework
+PySide6>=6.6.0
+
+# HTTP & Downloads
+requests>=2.31.0
+httpx>=0.25.0
+
+# Data Storage
+sqlalchemy>=2.0.0
+
+# File Operations
+huggingface-hub>=0.20.0
+
+# Utilities
+python-dotenv>=1.0.0
+appdirs>=1.4.4
