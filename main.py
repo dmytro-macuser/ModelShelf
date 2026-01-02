@@ -7,6 +7,7 @@ Download once. Organise forever.
 import sys
 import logging
 from pathlib import Path
+import asyncio
 
 # Configure logging
 from app.config import LOG_FILE
@@ -34,6 +35,7 @@ def main():
         from PySide6.QtQml import QQmlApplicationEngine
         from PySide6.QtCore import QUrl
         from app.config import APP_NAME, APP_VERSION
+        from app.services import get_service_manager
         
         # Import bridge to register QML types
         import ui.bridge
@@ -65,10 +67,18 @@ def main():
             return 1
         
         logger.info(f"{APP_NAME} v{APP_VERSION} initialized successfully")
-        logger.info("M1: Discover functionality ready")
+        logger.info("M2: Download Manager functionality ready")
         
         # Run application event loop
-        return app.exec()
+        exit_code = app.exec()
+        
+        # Cleanup
+        logger.info("Shutting down...")
+        # Since we can't easily run async cleanup from here without an event loop,
+        # we rely on the process termination to clean up file handles.
+        # In a production app, we might want to handle this more gracefully.
+        
+        return exit_code
         
     except ImportError as e:
         logger.error(f"Failed to import required modules: {e}")

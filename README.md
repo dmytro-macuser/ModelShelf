@@ -4,132 +4,67 @@ Tiny app, massive models.
 
 ModelShelf is a lightweight Windows desktop app for browsing, downloading, and organising local LLM model files from Hugging Face into a tidy library ("your shelf").
 
-![Development Status](https://img.shields.io/badge/status-M1%20In%20Progress-yellow)
-![Version](https://img.shields.io/badge/version-0.1.0--dev-blue)
+![Development Status](https://img.shields.io/badge/status-M2%20Complete-green)
+![Version](https://img.shields.io/badge/version-0.2.0--dev-blue)
 ![Licence](https://img.shields.io/badge/licence-MIT-green)
 
-## ✨ Features (M1 - In Progress)
+## ✨ Features
 
-### ✅ Currently Working
-- **Discover models** from Hugging Face with fast search
-- **GGUF-first browsing**: GGUF files are highlighted and prioritised
-- **Smart filters**: Text search, GGUF-only filter, sort by downloads/likes/recent/trending
-- **Model details**: View description, tags, licence, download stats, and complete file lists
-- **Intelligent caching**: Search results and metadata cached for instant repeat access
-- **Responsive UI**: Background loading keeps the interface smooth
-- **Quantisation detection**: Automatically identifies Q4_K_M, Q8_0, and other GGUF variants
+### ⬇️ Download Manager (New in M2!)
+- **Robust Queue**: Manage multiple downloads with ease
+- **Pause & Resume**: Stop downloads and continue them later, even after restarting the app
+- **Smart Resumption**: Uses HTTP Range headers to append to partial files
+- **Parallel Downloads**: Download up to 3 files simultaneously
+- **Real-time Stats**: Track speed, progress, and ETA
 
-### 🚧 Coming Soon
-- **Downloads** (M2): Queue management with pause/resume/retry
-- **Shelf** (M3): Local library view with disk usage tracking
-- **Settings** (M4): Configure download folder, cache size, HF token
-- **Packaging** (M5): Windows installer and portable builds
+### 🔍 Discovery
+- **Browse Models**: Search Hugging Face with fast, cached results
+- **GGUF-First**: Automatically highlights and prioritises GGUF model files
+- **Smart Filters**: Filter by tag, sort by popularity or recency
+- **Detailed Info**: View model cards, licences, and file lists
 
 ## 🚀 Quick Start
 
 ### Requirements
 - Python 3.11+
 - Windows 10/11 (primary target)
-- Internet connection for browsing models
 
 ### Installation
 
 ```bash
-# Clone the repository
+# Clone
 git clone https://github.com/dmytro-macuser/ModelShelf.git
 cd ModelShelf
 
-# Create virtual environment
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-# source .venv/bin/activate  # Linux/Mac
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the app
-python main.py
-```
-
-### First Use
-
-1. **Discover Tab** opens automatically
-2. Try searching for "llama" or "mistral"
-3. Enable **"GGUF files only"** to filter results
-4. Click on a model to view details
-5. Notice GGUF files highlighted in green with quantisation info
-
-## 📚 Documentation
-
-- [Implementation Plan](IMPLEMENTATION_PLAN.md) - Full roadmap and milestones
-- [Development Status](DEVELOPMENT.md) - Current progress and technical notes
-- [Contributing Guide](CONTRIBUTING.md) - How to contribute
-
-## 🛠️ Architecture
-
-```
-ModelShelf/
-├── ui/              # QML interface + Python bridge
-├── app/             # Application core & services
-├── domain/          # Business logic & models
-├── sources/         # Hub adapters (HuggingFace)
-├── downloader/      # Download manager (M2)
-├── library/         # Local model indexing (M3)
-├── storage/         # SQLite cache & settings
-└── integrations/    # External tools (future)
-```
-
-### Key Technologies
-- **UI**: PySide6 (Qt) with QML for declarative interfaces
-- **API**: Hugging Face Hub SDK
-- **Storage**: SQLite for caching, JSON for settings
-- **Async**: QThread for background operations
-
-## 🐛 Known Issues
-
-- Rate limiting from HF API not yet handled with backoff
-- Network errors show generic messages
-- Cache size not configurable (fixed 6h for search, 24h for models)
-- No retry mechanism for failed API calls
-
-## 📝 Roadmap
-
-- [x] **M0**: Project structure & skeleton UI
-- [x] **M1**: Hub browsing (80% complete)
-- [ ] **M2**: Download manager with queue
-- [ ] **M3**: Local shelf with disk management
-- [ ] **M4**: Settings & polish
-- [ ] **M5**: Windows packaging
-- [ ] **M6**: Documentation & v1.0 release
-
-See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for detailed milestone breakdown.
-
-## 🤝 Contributing
-
-Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Quick Contribution Setup
-```bash
-git clone https://github.com/YOUR_USERNAME/ModelShelf.git
-cd ModelShelf
+# Setup
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
+
+# Run
 python main.py
 ```
 
-## 💬 Support
+## 📚 Documentation
 
-Having issues?
-1. Check [DEVELOPMENT.md](DEVELOPMENT.md) for troubleshooting
-2. Review existing [Issues](https://github.com/dmytro-macuser/ModelShelf/issues)
-3. Open a new issue with details
+- [M2 Testing Guide](docs/M2_TESTING.md) - How to test the new download features
+- [M1 Testing Guide](docs/M1_TESTING.md) - Discovery features
+- [Architecture](docs/ARCHITECTURE.md) - Technical design
+
+## 📝 Roadmap
+
+- [x] **M0**: Project skeleton
+- [x] **M1**: Hub browsing
+- [x] **M2**: Download manager
+- [ ] **M3**: Local shelf (Coming Next!)
+- [ ] **M4**: Settings & polish
+- [ ] **M5**: Windows packaging
+- [ ] **M6**: v1.0 Release
+
+## 🤝 Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## 📜 Licence
 
-MIT Licence - see [LICENSE](LICENSE) for details.
-
----
-
-**Made with ❤️ for the LLM community**  
-*Small app. Big brains.*
+MIT

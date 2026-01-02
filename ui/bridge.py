@@ -5,13 +5,14 @@ Python-QML communication layer.
 
 import logging
 import asyncio
-from typing import Optional
-from PySide6.QtCore import QObject, Signal, Slot, Property, QThread
+from typing import Optional, Dict
+from PySide6.QtCore import QObject, Signal, Slot, Property, QThread, QTimer
 from PySide6.QtQml import QmlElement
 
 from app.services import get_service_manager
-from domain.models import SearchFilter, format_size
+from domain.models import SearchFilter, format_size, DownloadState
 from sources.hub_adapter import ModelInfo
+from downloader.manager import DownloadItem
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +151,91 @@ class SearchBridge(QObject):
         """Handle model details load failure."""
         logger.error(f"Model details load failed: {error}")
         self.modelDetailsLoadFailed.emit(error)
+
+
+@QmlElement
+class DownloadBridge(QObject):
+    """
+    Bridge for download operations.
+    """
+    
+    # Signals
+    downloadAdded = Signal(str)  # download_id
+    downloadStateChanged = Signal(str, str)  # id, state
+    downloadProgress = Signal(str, float, str, str)  # id, progress, speed, eta
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._service = get_service_manager().get_download_service()
+        self._setup_callbacks()
+    
+    def _setup_callbacks(self):
+        """Setup callbacks from manager."""
+        self._service.manager.on_state_change = self._on_state_change
+        self._service.manager.on_progress = self._on_progress
+    
+    @Slot(str, str, str, int)
+    def addDownload(self, model_id: str, filename: str, url: str, size: int):
+        """Add a download."""
+        download_id = self._service.add_download(model_id, filename, url, size)
+        self.downloadAdded.emit(download_id)
+    
+    @Slot(str)
+    def pauseDownload(self, download_id: str):
+        """Pause a download."""
+        self._service.pause_download(download_id)
+    
+    @Slot(str)
+    def resumeDownload(self, download_id: str):
+        """Resume a download."""
+        self._service.resume_download(download_id)
+    
+    @Slot(str)
+    def cancelDownload(self, download_id: str):
+        """Cancel a download."""
+        self._service.cancel_download(download_id)
+    
+    @Slot(result=list)
+    def getDownloads(self):
+        """Get all downloads."""
+        items = self._service.get_downloads()
+        result = []
+        for item in items:
+            result.append(self._format_item(item))
+        return result
+    
+    def _on_state_change(self, item: DownloadItem):
+        """Handle state change."""
+        self.downloadStateChanged.emit(item.id, item.state.value)
+    
+    def _on_progress(self, item: DownloadItem):
+        """Handle progress update."""
+        speed_str = f"{format_size(item.speed)}/s"
+        
+        eta_str = "--"
+        if item.eta is not None:
+            if item.eta < 60:
+                eta_str = f"{int(item.eta)}s"
+            elif item.eta < 3600:
+                eta_str = f"{int(item.eta/60)}m"
+            else:
+                eta_str = f"{int(item.eta/3600)}h"
+        
+        self.downloadProgress.emit(item.id, item.progress, speed_str, eta_str)
+    
+    def _format_item(self, item: DownloadItem) -> Dict:
+        """Format item for QML."""
+        return {
+            'id': item.id,
+            'modelId': item.model_id,
+            'filename': item.filename,
+            'totalSize': format_size(item.total_size),
+            'downloadedSize': format_size(item.downloaded_size),
+            'progress': item.progress,
+            'state': item.state.value,
+            'speed': "0 B/s",
+            'eta': "--"
+        }
 
 
 class SearchThread(QThread):

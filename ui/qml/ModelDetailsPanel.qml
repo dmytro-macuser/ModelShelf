@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import ModelShelf 1.0
 
 Rectangle {
     id: root
@@ -10,6 +11,11 @@ Rectangle {
     color: "white"
     
     property var modelDetails: null
+    
+    // Create download bridge instance locally for this panel
+    DownloadBridge {
+        id: downloadBridge
+    }
     
     ColumnLayout {
         anchors.fill: parent
@@ -200,8 +206,19 @@ Rectangle {
                                 }
                                 
                                 Button {
-                                    text: "Add to Queue"
-                                    enabled: false  // TODO: M2
+                                    text: "Download"
+                                    onClicked: {
+                                        // Trigger download via bridge
+                                        downloadBridge.addDownload(
+                                            modelDetails.id,
+                                            modelData.filename,
+                                            modelData.url,
+                                            modelData.sizeBytes
+                                        )
+                                        // Provide feedback (could be improved)
+                                        text = "Queued"
+                                        enabled = false
+                                    }
                                 }
                             }
                         }
