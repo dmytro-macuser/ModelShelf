@@ -1,237 +1,335 @@
 """
 ModelShelf Cache Manager
-Caching layer for search results and model metadata.
+High-level caching operations.
 """
 
 import json
+import hashlib
 import logging
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import Optional, List
 
-from storage.database import get_database
-from domain.models import Model, ModelFile
+from sources.hub_adapter import ModelInfo, ModelFile, SearchResult
+from .database import get_database, CachedModel, CachedFile, SearchCache
 
 logger = logging.getLogger(__name__)
 
 
 class CacheManager:
-    """
-    Manages caching of model metadata and search results.
-    """
+    """Manager for cached search results and model metadata."""
     
-    def __init__(self, cache_ttl_hours: int = 24):
-        """
-        Initialise cache manager.
-        
-        Args:
-            cache_ttl_hours: Time-to-live for cached data in hours
-        """
+    # Cache expiry times
+    SEARCH_CACHE_HOURS = 6
+    MODEL_CACHE_HOURS = 24
+    
+    def __init__(self):
         self.db = get_database()
-        self.cache_ttl = timedelta(hours=cache_ttl_hours)
     
-    def cache_model(self, model: Model) -> None:
+    def cache_search_result(
+        self,
+        query: str,
+        has_gguf: bool,
+        sort_by: str,
+        page: int,
+        page_size: int,
+        result: SearchResult
+    ) -> None:
         """
-        Cache a model and its files.
+        Cache a search result.
         
         Args:
-            model: Model to cache
+            query: Search query
+            has_gguf: GGUF filter
+            sort_by: Sort option
+            page: Page number
+            page_size: Page size
+            result: SearchResult to cache
         """
         try:
-            with self.db.transaction() as conn:
-                now = datetime.utcnow().isoformat()
-                
-                # Insert or replace model
-                conn.execute("""
-                    INSERT OR REPLACE INTO cached_models (
-                        id, name, author, description, tags, licence,
-                        downloads, likes, created_at, updated_at, source, cached_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    model.id,
-                    model.name,
-                    model.author,
-                    model.description,
-                    json.dumps(model.tags),
-                    model.licence,
-                    model.downloads,
-                    model.likes,
-                    model.created_at.isoformat() if model.created_at else None,
-                    model.updated_at.isoformat() if model.updated_at else None,
-                    model.source,
-                    now
-                ))
-                
-                # Delete existing files for this model
-                conn.execute("DELETE FROM cached_files WHERE model_id = ?", (model.id,))
-                
-                # Insert files
-                for file in model.files:
-                    conn.execute("""
-                        INSERT INTO cached_files (
-                            model_id, filename, size, url, sha256, file_type, cached_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        model.id,
-                        file.filename,
-                        file.size,
-                        file.url,
-                        file.sha256,
-                        file.file_type.value,
-                        now
-                    ))
+            query_hash = self._hash_query(query, has_gguf, sort_by, page, page_size)
+            result_ids = [model.id for model in result.models]
             
-            logger.debug(f"Cached model {model.id} with {len(model.files)} files")
-            
+            session = self.db.get_session()
+            try:
+                # Check if exists
+                cached = session.query(SearchCache).filter_by(query_hash=query_hash).first()
+                
+                if cached:
+                    # Update existing
+                    cached.result_ids = json.dumps(result_ids)
+                    cached.total_count = result.total_count
+                    cached.has_next = result.has_next
+                    cached.cached_at = datetime.utcnow()
+                else:
+                    # Create new
+                    cached = SearchCache(
+                        query_hash=query_hash,
+                        query=query,
+                        has_gguf=has_gguf,
+                        sort_by=sort_by,
+                        page=page,
+                        page_size=page_size,
+                        result_ids=json.dumps(result_ids),
+                        total_count=result.total_count,
+                        has_next=result.has_next
+                    )
+                    session.add(cached)
+                
+                # Cache individual models
+                for model in result.models:
+                    self._cache_model(session, model)
+                
+                session.commit()
+                logger.debug(f"Cached search result: {query_hash}")
+                
+            finally:
+                session.close()
+                
         except Exception as e:
-            logger.error(f"Failed to cache model {model.id}: {e}", exc_info=True)
+            logger.error(f"Failed to cache search result: {e}")
     
-    def get_cached_model(self, model_id: str) -> Optional[Model]:
+    def get_cached_search(
+        self,
+        query: str,
+        has_gguf: bool,
+        sort_by: str,
+        page: int,
+        page_size: int
+    ) -> Optional[SearchResult]:
         """
-        Retrieve a cached model if it exists and is not expired.
+        Retrieve cached search result if not expired.
+        
+        Returns:
+            SearchResult or None if not cached/expired
+        """
+        try:
+            query_hash = self._hash_query(query, has_gguf, sort_by, page, page_size)
+            session = self.db.get_session()
+            
+            try:
+                cached = session.query(SearchCache).filter_by(query_hash=query_hash).first()
+                
+                if not cached:
+                    return None
+                
+                # Check expiry
+                expiry = datetime.utcnow() - timedelta(hours=self.SEARCH_CACHE_HOURS)
+                if cached.cached_at < expiry:
+                    logger.debug(f"Search cache expired: {query_hash}")
+                    return None
+                
+                # Load models
+                result_ids = json.loads(cached.result_ids)
+                models = []
+                
+                for model_id in result_ids:
+                    model = self._get_cached_model(session, model_id)
+                    if model:
+                        models.append(model)
+                
+                if not models:
+                    return None
+                
+                return SearchResult(
+                    models=models,
+                    total_count=cached.total_count,
+                    page=cached.page,
+                    page_size=cached.page_size,
+                    has_next=cached.has_next
+                )
+                
+            finally:
+                session.close()
+                
+        except Exception as e:
+            logger.error(f"Failed to retrieve cached search: {e}")
+            return None
+    
+    def cache_model(self, model: ModelInfo) -> None:
+        """
+        Cache a single model.
+        
+        Args:
+            model: ModelInfo to cache
+        """
+        session = self.db.get_session()
+        try:
+            self._cache_model(session, model)
+            session.commit()
+        finally:
+            session.close()
+    
+    def get_cached_model(self, model_id: str) -> Optional[ModelInfo]:
+        """
+        Retrieve cached model if not expired.
         
         Args:
             model_id: Model identifier
         
         Returns:
-            Cached Model or None if not found/expired
+            ModelInfo or None if not cached/expired
         """
+        session = self.db.get_session()
         try:
-            conn = self.db.get_connection()
-            
-            # Get model
-            cursor = conn.execute(
-                "SELECT * FROM cached_models WHERE id = ?",
-                (model_id,)
-            )
-            row = cursor.fetchone()
-            
-            if row is None:
-                return None
-            
-            # Check if expired
-            cached_at = datetime.fromisoformat(row['cached_at'])
-            if datetime.utcnow() - cached_at > self.cache_ttl:
-                logger.debug(f"Cached model {model_id} expired")
-                return None
-            
-            # Convert to Model object
-            model = Model(
-                id=row['id'],
-                name=row['name'],
-                author=row['author'],
-                description=row['description'],
-                tags=json.loads(row['tags']) if row['tags'] else [],
-                licence=row['licence'],
-                downloads=row['downloads'],
-                likes=row['likes'],
-                created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
-                updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None,
-                source=row['source']
-            )
-            
-            # Get files
-            cursor = conn.execute(
-                "SELECT * FROM cached_files WHERE model_id = ? ORDER BY filename",
-                (model_id,)
-            )
-            
-            files = []
-            for file_row in cursor:
-                files.append(ModelFile(
-                    filename=file_row['filename'],
-                    size=file_row['size'],
-                    url=file_row['url'],
-                    sha256=file_row['sha256']
-                ))
-            
-            model.files = files
-            logger.debug(f"Retrieved cached model {model_id}")
-            return model
-            
-        except Exception as e:
-            logger.error(f"Failed to get cached model {model_id}: {e}", exc_info=True)
-            return None
+            return self._get_cached_model(session, model_id)
+        finally:
+            session.close()
     
-    def cache_models_batch(self, models: List[Model]) -> None:
-        """
-        Cache multiple models at once.
-        
-        Args:
-            models: List of models to cache
-        """
-        for model in models:
-            self.cache_model(model)
-    
-    def clear_expired_cache(self) -> int:
+    def clear_expired_cache(self) -> None:
         """
         Remove expired cache entries.
-        
-        Returns:
-            Number of entries removed
         """
         try:
-            expiry_time = datetime.utcnow() - self.cache_ttl
-            
-            with self.db.transaction() as conn:
-                # Delete expired models (files will cascade)
-                cursor = conn.execute(
-                    "DELETE FROM cached_models WHERE cached_at < ?",
-                    (expiry_time.isoformat(),)
-                )
-                count = cursor.rowcount
-            
-            if count > 0:
-                logger.info(f"Cleared {count} expired cache entries")
-            
-            return count
-            
+            session = self.db.get_session()
+            try:
+                search_expiry = datetime.utcnow() - timedelta(hours=self.SEARCH_CACHE_HOURS)
+                model_expiry = datetime.utcnow() - timedelta(hours=self.MODEL_CACHE_HOURS)
+                
+                # Delete expired searches
+                session.query(SearchCache).filter(
+                    SearchCache.cached_at < search_expiry
+                ).delete()
+                
+                # Delete expired models
+                session.query(CachedModel).filter(
+                    CachedModel.cached_at < model_expiry
+                ).delete()
+                
+                session.commit()
+                logger.info("Expired cache cleared")
+                
+            finally:
+                session.close()
+                
         except Exception as e:
-            logger.error(f"Failed to clear expired cache: {e}", exc_info=True)
-            return 0
+            logger.error(f"Failed to clear expired cache: {e}")
     
-    def clear_all_cache(self) -> None:
-        """
-        Clear all cached data.
-        """
-        try:
-            with self.db.transaction() as conn:
-                conn.execute("DELETE FROM cached_files")
-                conn.execute("DELETE FROM cached_models")
-            
-            logger.info("Cleared all cache data")
-            
-        except Exception as e:
-            logger.error(f"Failed to clear cache: {e}", exc_info=True)
+    def _hash_query(self, query: str, has_gguf: bool, sort_by: str, page: int, page_size: int) -> str:
+        """Generate hash for query parameters."""
+        params = f"{query}|{has_gguf}|{sort_by}|{page}|{page_size}"
+        return hashlib.md5(params.encode()).hexdigest()
     
-    def get_cache_stats(self) -> dict:
-        """
-        Get cache statistics.
+    def _cache_model(self, session, model: ModelInfo) -> None:
+        """Cache a model in the session."""
+        cached = session.query(CachedModel).filter_by(id=model.id).first()
         
-        Returns:
-            Dictionary with cache statistics
-        """
-        try:
-            conn = self.db.get_connection()
+        if cached:
+            # Update existing
+            cached.name = model.name
+            cached.author = model.author
+            cached.description = model.description
+            cached.tags = json.dumps(model.tags)
+            cached.licence = model.licence
+            cached.downloads = model.downloads
+            cached.likes = model.likes
+            cached.created_at = model.created_at
+            cached.updated_at = model.updated_at
+            cached.has_gguf = model.has_gguf
+            cached.total_size = model.total_size
+            cached.cached_at = datetime.utcnow()
             
-            # Count models
-            cursor = conn.execute("SELECT COUNT(*) as count FROM cached_models")
-            model_count = cursor.fetchone()['count']
+            # Update files if provided
+            if model.files:
+                # Clear old files
+                session.query(CachedFile).filter_by(model_id=model.id).delete()
+                
+                # Add new files
+                for file in model.files:
+                    cached_file = CachedFile(
+                        model_id=model.id,
+                        filename=file.filename,
+                        size=file.size,
+                        url=file.url,
+                        sha256=file.sha256,
+                        is_gguf=file.is_gguf,
+                        quantisation=file.quantisation
+                    )
+                    session.add(cached_file)
+        else:
+            # Create new
+            cached = CachedModel(
+                id=model.id,
+                name=model.name,
+                author=model.author,
+                description=model.description,
+                tags=json.dumps(model.tags),
+                licence=model.licence,
+                downloads=model.downloads,
+                likes=model.likes,
+                created_at=model.created_at,
+                updated_at=model.updated_at,
+                has_gguf=model.has_gguf,
+                total_size=model.total_size
+            )
+            session.add(cached)
             
-            # Count files
-            cursor = conn.execute("SELECT COUNT(*) as count FROM cached_files")
-            file_count = cursor.fetchone()['count']
-            
-            # Total size
-            cursor = conn.execute("SELECT SUM(size) as total FROM cached_files")
-            total_size = cursor.fetchone()['total'] or 0
-            
-            return {
-                "models": model_count,
-                "files": file_count,
-                "total_size_bytes": total_size,
-                "total_size_mb": total_size / (1024 * 1024)
-            }
-            
-        except Exception as e:
-            logger.error(f"Failed to get cache stats: {e}", exc_info=True)
-            return {"models": 0, "files": 0, "total_size_bytes": 0, "total_size_mb": 0}
+            # Add files if provided
+            if model.files:
+                for file in model.files:
+                    cached_file = CachedFile(
+                        model_id=model.id,
+                        filename=file.filename,
+                        size=file.size,
+                        url=file.url,
+                        sha256=file.sha256,
+                        is_gguf=file.is_gguf,
+                        quantisation=file.quantisation
+                    )
+                    session.add(cached_file)
+    
+    def _get_cached_model(self, session, model_id: str) -> Optional[ModelInfo]:
+        """Get cached model from session."""
+        cached = session.query(CachedModel).filter_by(id=model_id).first()
+        
+        if not cached:
+            return None
+        
+        # Check expiry
+        expiry = datetime.utcnow() - timedelta(hours=self.MODEL_CACHE_HOURS)
+        if cached.cached_at < expiry:
+            return None
+        
+        # Convert to ModelInfo
+        files = []
+        for cached_file in cached.files:
+            files.append(ModelFile(
+                filename=cached_file.filename,
+                size=cached_file.size,
+                url=cached_file.url,
+                sha256=cached_file.sha256,
+                is_gguf=cached_file.is_gguf,
+                quantisation=cached_file.quantisation
+            ))
+        
+        return ModelInfo(
+            id=cached.id,
+            name=cached.name,
+            author=cached.author,
+            description=cached.description,
+            tags=json.loads(cached.tags) if cached.tags else [],
+            licence=cached.licence,
+            downloads=cached.downloads,
+            likes=cached.likes,
+            created_at=cached.created_at,
+            updated_at=cached.updated_at,
+            has_gguf=cached.has_gguf,
+            total_size=cached.total_size,
+            files=files
+        )
+
+
+# Global cache instance
+_cache_instance: Optional[CacheManager] = None
+
+
+def get_cache() -> CacheManager:
+    """
+    Get the global cache manager instance.
+    
+    Returns:
+        Global CacheManager instance
+    """
+    global _cache_instance
+    if _cache_instance is None:
+        _cache_instance = CacheManager()
+    return _cache_instance
