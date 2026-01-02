@@ -10,7 +10,8 @@ from typing import Optional, List
 from sources.hub_adapter import SearchResult, ModelInfo
 from sources.huggingface_adapter import HuggingFaceAdapter
 from storage.cache import get_cache
-from domain.models import SearchFilter
+from domain.models import SearchFilter, DownloadState
+from downloader.manager import DownloadManager, DownloadItem
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +173,40 @@ class SearchService:
         await self.hub.close()
 
 
+class DownloadService:
+    """
+    Service for managing downloads.
+    """
+    
+    def __init__(self, manager: DownloadManager):
+        self.manager = manager
+    
+    def add_download(self, model_id: str, filename: str, url: str, size: int) -> str:
+        """Add file to download queue."""
+        logger.info(f"Adding download: {model_id}/{filename}")
+        return self.manager.add_download(model_id, filename, url, size)
+    
+    def pause_download(self, download_id: str):
+        """Pause a download."""
+        self.manager.pause_download(download_id)
+    
+    def resume_download(self, download_id: str):
+        """Resume a download."""
+        self.manager.resume_download(download_id)
+    
+    def cancel_download(self, download_id: str):
+        """Cancel a download."""
+        self.manager.cancel_download(download_id)
+    
+    def get_downloads(self) -> List[DownloadItem]:
+        """Get all downloads."""
+        return self.manager.get_all_items()
+    
+    async def close(self):
+        """Cleanup."""
+        await self.manager.cleanup()
+
+
 class ServiceManager:
     """
     Central manager for all application services.
@@ -179,25 +214,29 @@ class ServiceManager:
     
     def __init__(self):
         self._search_service: Optional[SearchService] = None
+        self._download_service: Optional[DownloadService] = None
+        self._download_manager: Optional[DownloadManager] = None
     
     def get_search_service(self, token: Optional[str] = None) -> SearchService:
-        """
-        Get or create search service instance.
-        
-        Args:
-            token: Optional HF API token
-        
-        Returns:
-            SearchService instance
-        """
+        """Get or create search service instance."""
         if self._search_service is None:
             self._search_service = SearchService(token=token)
         return self._search_service
+    
+    def get_download_service(self) -> DownloadService:
+        """Get or create download service instance."""
+        if self._download_service is None:
+            if self._download_manager is None:
+                self._download_manager = DownloadManager()
+            self._download_service = DownloadService(self._download_manager)
+        return self._download_service
     
     async def close_all(self):
         """Close all services."""
         if self._search_service:
             await self._search_service.close()
+        if self._download_service:
+            await self._download_service.close()
 
 
 # Global service manager
