@@ -99,15 +99,9 @@ ApplicationWindow {
                     id: discoverView
                 }
 
-                // Downloads view (placeholder)
-                Item {
-                    Label {
-                        anchors.centerIn: parent
-                        text: "Downloads\n\nComing in M2"
-                        font.pixelSize: 18
-                        color: "#95a5a6"
-                        horizontalAlignment: Text.AlignHCenter
-                    }
+                // Downloads view
+                Downloads {
+                    id: downloadsView
                 }
 
                 // Shelf view (placeholder)
@@ -146,7 +140,7 @@ ApplicationWindow {
                         }
 
                         Label {
-                            text: "v0.1.0-dev (M1)"
+                            text: "v0.1.0-dev (M2)"
                             font.pixelSize: 14
                             color: "#7f8c8d"
                             Layout.alignment: Qt.AlignHCenter
