@@ -1,16 +1,14 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import "components"
 
 ApplicationWindow {
     id: root
-    width: 1200
+    width: 1280
     height: 800
     visible: true
     title: "ModelShelf 🙂"
 
-    // Navigation state
     property string currentView: "discover"
 
     // Main layout
@@ -77,48 +75,100 @@ ApplicationWindow {
             }
         }
 
-        // Main content area with view switching
-        StackLayout {
+        // Main content area
+        Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            currentIndex: {
-                switch(currentView) {
-                    case "discover": return 0
-                    case "downloads": return 1
-                    case "shelf": return 2
-                    case "settings": return 3
-                    case "about": return 4
-                    default: return 0
+            color: "#ecf0f1"
+
+            StackLayout {
+                anchors.fill: parent
+                currentIndex: {
+                    switch(currentView) {
+                        case "discover": return 0
+                        case "downloads": return 1
+                        case "shelf": return 2
+                        case "settings": return 3
+                        case "about": return 4
+                        default: return 0
+                    }
                 }
-            }
 
-            // Discover view
-            DiscoverView {
-                id: discoverView
-            }
+                // Discover view
+                Discover {
+                    id: discoverView
+                }
 
-            // Downloads view (placeholder)
-            PlaceholderView {
-                viewName: "Downloads"
-                description: "Download queue will appear here\n(Coming in M2)"
-            }
+                // Downloads view (placeholder)
+                Item {
+                    Label {
+                        anchors.centerIn: parent
+                        text: "Downloads\n\nComing in M2"
+                        font.pixelSize: 18
+                        color: "#95a5a6"
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                }
 
-            // Shelf view (placeholder)
-            PlaceholderView {
-                viewName: "Shelf"
-                description: "Your local model library\n(Coming in M3)"
-            }
+                // Shelf view (placeholder)
+                Item {
+                    Label {
+                        anchors.centerIn: parent
+                        text: "Shelf\n\nComing in M3"
+                        font.pixelSize: 18
+                        color: "#95a5a6"
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                }
 
-            // Settings view (placeholder)
-            PlaceholderView {
-                viewName: "Settings"
-                description: "Application settings\n(Coming in M4)"
-            }
+                // Settings view (placeholder)
+                Item {
+                    Label {
+                        anchors.centerIn: parent
+                        text: "Settings\n\nComing in M4"
+                        font.pixelSize: 18
+                        color: "#95a5a6"
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                }
 
-            // About view
-            PlaceholderView {
-                viewName: "About ModelShelf"
-                description: "Version 0.1.0-dev\nM1: Hub Browsing\n\nDownload once. Organise forever."
+                // About view (placeholder)
+                Item {
+                    ColumnLayout {
+                        anchors.centerIn: parent
+                        spacing: 10
+
+                        Label {
+                            text: "ModelShelf 🙂"
+                            font.pixelSize: 24
+                            font.bold: true
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+
+                        Label {
+                            text: "v0.1.0-dev (M1)"
+                            font.pixelSize: 14
+                            color: "#7f8c8d"
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+
+                        Label {
+                            text: "Download once. Organise forever."
+                            font.pixelSize: 12
+                            color: "#95a5a6"
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.topMargin: 10
+                        }
+
+                        Label {
+                            text: "MIT Licence"
+                            font.pixelSize: 10
+                            color: "#95a5a6"
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.topMargin: 20
+                        }
+                    }
+                }
             }
         }
     }
@@ -147,34 +197,6 @@ ApplicationWindow {
         
         onHoveredChanged: {
             background.color = hovered ? "#34495e" : (isActive ? "#34495e" : "transparent")
-        }
-    }
-
-    // Placeholder view component
-    component PlaceholderView: Rectangle {
-        property string viewName: "View"
-        property string description: ""
-        
-        color: "#ecf0f1"
-
-        ColumnLayout {
-            anchors.centerIn: parent
-            spacing: 15
-
-            Label {
-                text: viewName
-                font.pixelSize: 24
-                font.bold: true
-                Layout.alignment: Qt.AlignHCenter
-            }
-
-            Label {
-                text: description
-                font.pixelSize: 14
-                color: "#7f8c8d"
-                horizontalAlignment: Text.AlignHCenter
-                Layout.alignment: Qt.AlignHCenter
-            }
         }
     }
 }

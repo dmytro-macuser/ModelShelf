@@ -1,6 +1,6 @@
 # ModelShelf Development Status
 
-## Current Milestone: M0 ✅ COMPLETE
+## Current Milestone: M1 ⏳ IN PROGRESS
 
 ### M0: Repo + skeleton (1–2 days)
 **Status**: ✅ Complete
@@ -8,14 +8,6 @@
 #### Completed:
 - [x] Project structure created
 - [x] Module directories established
-  - [x] `ui/` - QML interface
-  - [x] `app/` - Application core
-  - [x] `domain/` - Business logic
-  - [x] `sources/` - Hub adapters
-  - [x] `downloader/` - Download management
-  - [x] `library/` - Model indexing
-  - [x] `storage/` - Settings & database
-  - [x] `integrations/` - External tools
 - [x] Basic QML shell with sidebar navigation
 - [x] Settings persistence (JSON-based)
 - [x] Logging configured
@@ -25,38 +17,62 @@
 
 ---
 
-## Next Milestone: M1 - Hub Browsing
-
 ### M1: Hub browsing (3–7 days)
-**Status**: ⏳ Not Started
+**Status**: ⏳ In Progress
 
-#### Tasks:
-- [ ] Implement Hugging Face Hub API adapter
-- [ ] Model search with pagination
-- [ ] Basic filters:
-  - [ ] Text search
-  - [ ] "Has GGUF" filter
-  - [ ] Size filter
-  - [ ] Popularity sort
-- [ ] Model details panel:
-  - [ ] Metadata display
-  - [ ] File list with GGUF highlighting
-  - [ ] Licence information
-  - [ ] Tags display
-- [ ] Result caching (SQLite)
-- [ ] UI responsiveness testing
+#### Completed:
+- [x] Hub adapter interface defined
+- [x] Hugging Face API integration
+  - [x] Model search with pagination
+  - [x] GGUF detection and prioritisation
+  - [x] Quantisation pattern recognition
+  - [x] File listing with metadata
+- [x] SQLite cache layer
+  - [x] Search result caching
+  - [x] Model metadata caching
+  - [x] Automatic expiry management
+- [x] SearchService with cache coordination
+- [x] Discover UI implementation
+  - [x] Search bar with filters
+  - [x] GGUF filter checkbox
+  - [x] Sort options (downloads, likes, recent, trending)
+  - [x] Model list with pagination
+  - [x] Model details panel
+  - [x] File list with GGUF highlighting
+- [x] Python-QML bridge for async operations
+- [x] Threaded search to keep UI responsive
+
+#### In Progress:
+- [ ] Testing & bug fixes
+- [ ] Performance optimization
+
+#### Acceptance Criteria:
+- ✅ Search results show quickly
+- ✅ Scrolling doesn't freeze UI
+- ✅ GGUF files are clearly prioritised
+- ⏳ Cached results load instantly on repeat searches
+
+---
+
+## Next Milestone: M2 - Download Manager
+
+### M2: Download Manager (5–10 days)
+**Status**: 📅 Planned
+
+#### Planned Tasks:
+- [ ] Download queue system
+- [ ] Parallel downloads (configurable max concurrency)
+- [ ] Resume/retry strategy
+- [ ] File verification (size + SHA256)
+- [ ] Download UI with progress bars
+- [ ] Pause/cancel/retry controls
 
 **Acceptance Criteria**:
-- Search results show quickly and scrolling doesn't freeze UI
-- GGUF files are clearly prioritised in file listings
-- Cached results load instantly on repeat searches
+- Interrupting a download and restarting the app resumes safely
 
 ---
 
 ## Upcoming Milestones
-
-### M2: Download Manager (5–10 days)
-**Status**: 📅 Planned
 
 ### M3: Shelf (3–7 days)
 **Status**: 📅 Planned
@@ -72,41 +88,73 @@
 
 ---
 
-## Development Notes
+## Technical Implementation Notes
 
-### Current Architecture
-- **UI Framework**: PySide6 (Qt for Python) with QML
-- **Settings**: JSON file storage
-- **Database**: SQLite (to be implemented in M1)
-- **Logging**: Python logging module with file output
+### M1 Architecture
 
-### Key Decisions
-1. **UK English**: All UI text and docs use UK spelling
-2. **Runner-agnostic**: ModelShelf is a library manager, not an inference tool
-3. **Single source (v1)**: Hugging Face Hub only; architecture supports future sources
-4. **GGUF-first**: Prioritise GGUF files in discovery and listings
+**Hub Integration:**
+- Abstract `HubAdapter` interface supports multiple sources
+- `HuggingFaceAdapter` implementation uses `huggingface-hub` SDK
+- GGUF detection via filename patterns (Q4_K_M, Q8_0, etc.)
+- Async operations using `httpx` for non-blocking I/O
 
-### Testing Strategy
-(To be defined in M1)
+**Caching Strategy:**
+- SQLite database for persistence
+- 6-hour cache for search results
+- 24-hour cache for model metadata
+- Automatic expiry cleanup
+- Hash-based query identification
+
+**UI Architecture:**
+- QML for declarative UI
+- Python bridge classes with `@QmlElement` decorator
+- QThread for background operations
+- Signal/slot pattern for async updates
+- Responsive design with proper loading states
+
+**Key Files:**
+- `sources/hub_adapter.py` - Abstract interface
+- `sources/huggingface_adapter.py` - HF implementation
+- `storage/database.py` - SQLAlchemy models
+- `storage/cache.py` - Cache manager
+- `app/services.py` - Business logic layer
+- `ui/bridge.py` - Python-QML bridge
+- `ui/qml/Discover.qml` - Main discover view
+- `ui/qml/ModelDetailsPanel.qml` - Model details
+
+---
+
+## Testing Strategy
+
+### Manual Testing (M1)
+1. Search for "llama" - should show results quickly
+2. Enable GGUF filter - should filter to GGUF models only
+3. Click on a model - details panel should load
+4. Check file list - GGUF files should be highlighted
+5. Scroll model list - should remain smooth
+6. Repeat search - should load from cache (faster)
+
+### Known Limitations
+- HF rate limiting not yet handled with backoff
+- Network errors show generic error messages
+- No retry mechanism for failed API calls
+- Cache size not configurable yet
 
 ---
 
 ## Version History
 
-### v0.1.0-dev (Current)
+### v0.1.0-dev (Current - M1)
 - M0 complete: Basic skeleton and project structure
-- Repository initialised: [github.com/dmytro-macuser/ModelShelf](https://github.com/dmytro-macuser/ModelShelf)
-- Development environment configured
+- M1 in progress: Hub browsing with search and caching
+- Repository: [github.com/dmytro-macuser/ModelShelf](https://github.com/dmytro-macuser/ModelShelf)
 
 ---
 
-## How to Contribute
+## How to Test M1
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
-
-### Quick Start for Contributors
 ```bash
-# Clone and setup
+# Setup
 git clone https://github.com/dmytro-macuser/ModelShelf.git
 cd ModelShelf
 python -m venv .venv
@@ -115,10 +163,17 @@ pip install -r requirements.txt
 
 # Run
 python main.py
+
+# Test search
+# 1. App should open to Discover tab
+# 2. Try searching for "llama" or "mistral"
+# 3. Enable "GGUF files only" filter
+# 4. Click on a model to see details
+# 5. Check that GGUF files are highlighted in green
 ```
 
 ---
 
-**Last Updated**: 2026-01-01  
+**Last Updated**: 2026-01-02  
 **Current Version**: 0.1.0-dev  
-**Active Milestone**: M0 → M1 transition
+**Active Milestone**: M1 (Hub Browsing) - ~80% complete

@@ -31,10 +31,12 @@ def main():
     
     try:
         from PySide6.QtWidgets import QApplication
-        from PySide6.QtQml import QQmlApplicationEngine, qmlRegisterType
+        from PySide6.QtQml import QQmlApplicationEngine
         from PySide6.QtCore import QUrl
         from app.config import APP_NAME, APP_VERSION
-        from ui.controllers.discover_controller import DiscoverController
+        
+        # Import bridge to register QML types
+        import ui.bridge
         
         # Create Qt application
         app = QApplication(sys.argv)
@@ -44,12 +46,6 @@ def main():
         
         # Create QML engine
         engine = QQmlApplicationEngine()
-        
-        # Create controllers
-        discover_controller = DiscoverController()
-        
-        # Expose controllers to QML
-        engine.rootContext().setContextProperty("discoverController", discover_controller)
         
         # Add QML import paths
         qml_dir = Path(__file__).parent / "ui" / "qml"
