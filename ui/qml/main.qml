@@ -7,7 +7,7 @@ ApplicationWindow {
     width: 1280
     height: 800
     visible: true
-    title: "ModelShelf 🙂"
+    title: "ModelShelf 😊"
 
     property string currentView: "discover"
 
@@ -29,7 +29,7 @@ ApplicationWindow {
 
                 // Logo/Title
                 Label {
-                    text: "ModelShelf 🙂"
+                    text: "ModelShelf 😊"
                     font.pixelSize: 18
                     font.bold: true
                     color: "white"
@@ -52,7 +52,7 @@ ApplicationWindow {
                 }
 
                 NavButton {
-                    text: "Shelf"
+                    text: "📚 Shelf"
                     isActive: currentView === "shelf"
                     onClicked: currentView = "shelf"
                 }
@@ -104,15 +104,9 @@ ApplicationWindow {
                     id: downloadsView
                 }
 
-                // Shelf view (placeholder)
-                Item {
-                    Label {
-                        anchors.centerIn: parent
-                        text: "Shelf\n\nComing in M3"
-                        font.pixelSize: 18
-                        color: "#95a5a6"
-                        horizontalAlignment: Text.AlignHCenter
-                    }
+                // Shelf view
+                Shelf {
+                    id: shelfView
                 }
 
                 // Settings view (placeholder)
@@ -126,21 +120,21 @@ ApplicationWindow {
                     }
                 }
 
-                // About view (placeholder)
+                // About view
                 Item {
                     ColumnLayout {
                         anchors.centerIn: parent
                         spacing: 10
 
                         Label {
-                            text: "ModelShelf 🙂"
+                            text: "ModelShelf 😊"
                             font.pixelSize: 24
                             font.bold: true
                             Layout.alignment: Qt.AlignHCenter
                         }
 
                         Label {
-                            text: "v0.1.0-dev (M2)"
+                            text: "v0.3.0-dev (M3)"
                             font.pixelSize: 14
                             color: "#7f8c8d"
                             Layout.alignment: Qt.AlignHCenter

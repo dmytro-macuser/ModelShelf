@@ -67,16 +67,13 @@ def main():
             return 1
         
         logger.info(f"{APP_NAME} v{APP_VERSION} initialized successfully")
-        logger.info("M2: Download Manager functionality ready")
+        logger.info("M3: Bookshelf library view ready 📚")
         
         # Run application event loop
         exit_code = app.exec()
         
         # Cleanup
         logger.info("Shutting down...")
-        # Since we can't easily run async cleanup from here without an event loop,
-        # we rely on the process termination to clean up file handles.
-        # In a production app, we might want to handle this more gracefully.
         
         return exit_code
         
