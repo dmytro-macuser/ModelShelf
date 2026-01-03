@@ -13,6 +13,7 @@ from app.services import get_service_manager
 from domain.models import SearchFilter, format_size, DownloadState
 from sources.hub_adapter import ModelInfo
 from downloader.manager import DownloadItem
+from library.indexer import ModelEntry
 
 logger = logging.getLogger(__name__)
 
@@ -51,13 +52,6 @@ class SearchBridge(QObject):
     ):
         """
         Perform search with given parameters.
-        
-        Args:
-            query: Search query text
-            has_gguf: Filter for GGUF files
-            sort_by: Sort criterion
-            page: Page number (0-indexed)
-            page_size: Results per page
         """
         logger.info(f"Search requested: query='{query}', has_gguf={has_gguf}, sort={sort_by}")
         
@@ -78,12 +72,7 @@ class SearchBridge(QObject):
     
     @Slot(str)
     def loadModelDetails(self, model_id: str):
-        """
-        Load detailed model information.
-        
-        Args:
-            model_id: Model identifier
-        """
+        """Load detailed model information."""
         logger.info(f"Loading model details: {model_id}")
         
         thread = ModelDetailsThread(self._service, model_id)
@@ -93,7 +82,6 @@ class SearchBridge(QObject):
     
     def _on_search_finished(self, result):
         """Handle search completion."""
-        # Convert models to QML-friendly format
         models = []
         for model in result.models:
             models.append({
@@ -119,7 +107,6 @@ class SearchBridge(QObject):
     
     def _on_model_details_loaded(self, model: ModelInfo):
         """Handle model details loaded."""
-        # Convert to QML-friendly format
         files = []
         for file in model.files:
             files.append({
@@ -238,11 +225,67 @@ class DownloadBridge(QObject):
         }
 
 
+@QmlElement
+class ShelfBridge(QObject):
+    """
+    Bridge for library/shelf operations.
+    """
+    
+    # Signals
+    scanStarted = Signal()
+    scanCompleted = Signal(list, int, str)  # models, count, total_size
+    modelDeleted = Signal(str)  # model_id
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._service = get_service_manager().get_library_service()
+    
+    @Slot(bool)
+    def scanLibrary(self, force: bool = False):
+        """Scan library for models."""
+        self.scanStarted.emit()
+        thread = LibraryScanThread(self._service, force)
+        thread.finished.connect(self._on_scan_finished)
+        thread.start()
+    
+    @Slot(str)
+    def deleteModel(self, model_id: str):
+        """Delete a model."""
+        success = self._service.delete_model(model_id)
+        if success:
+            self.modelDeleted.emit(model_id)
+    
+    @Slot(str)
+    def openFolder(self, model_id: str):
+        """Open model folder in explorer."""
+        self._service.open_model_folder(model_id)
+    
+    def _on_scan_finished(self, models):
+        """Handle scan completion."""
+        formatted_models = []
+        for model in models:
+            formatted_models.append({
+                'id': model.id,
+                'name': model.name,
+                'fileCount': model.file_count,
+                'ggufCount': model.gguf_count,
+                'totalSize': format_size(model.total_size),
+                'totalSizeBytes': model.total_size,
+                'path': str(model.path)
+            })
+        
+        total_size = sum(m.total_size for m in models)
+        self.scanCompleted.emit(
+            formatted_models,
+            len(models),
+            format_size(total_size)
+        )
+
+
 class SearchThread(QThread):
     """Thread for running async search operations."""
-    
-    finished = Signal(object)  # SearchResult
-    failed = Signal(str)  # error message
+    finished = Signal(object)
+    failed = Signal(str)
     
     def __init__(self, service, filter: SearchFilter):
         super().__init__()
@@ -250,7 +293,6 @@ class SearchThread(QThread):
         self.filter = filter
     
     def run(self):
-        """Run the search."""
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -263,9 +305,8 @@ class SearchThread(QThread):
 
 class ModelDetailsThread(QThread):
     """Thread for loading model details."""
-    
-    finished = Signal(object)  # ModelInfo
-    failed = Signal(str)  # error message
+    finished = Signal(object)
+    failed = Signal(str)
     
     def __init__(self, service, model_id: str):
         super().__init__()
@@ -273,7 +314,6 @@ class ModelDetailsThread(QThread):
         self.model_id = model_id
     
     def run(self):
-        """Load model details."""
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -286,3 +326,17 @@ class ModelDetailsThread(QThread):
                 self.failed.emit("Model not found")
         except Exception as e:
             self.failed.emit(str(e))
+
+
+class LibraryScanThread(QThread):
+    """Thread for scanning library."""
+    finished = Signal(list)
+    
+    def __init__(self, service, force: bool):
+        super().__init__()
+        self.service = service
+        self.force = force
+    
+    def run(self):
+        models = self.service.scan_library(force=self.force)
+        self.finished.emit(models)

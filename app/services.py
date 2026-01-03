@@ -6,12 +6,14 @@ High-level business operations.
 import logging
 import asyncio
 from typing import Optional, List
+from pathlib import Path
 
 from sources.hub_adapter import SearchResult, ModelInfo
 from sources.huggingface_adapter import HuggingFaceAdapter
 from storage.cache import get_cache
 from domain.models import SearchFilter, DownloadState
 from downloader.manager import DownloadManager, DownloadItem
+from library.indexer import LibraryIndexer, ModelEntry, get_indexer
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +209,61 @@ class DownloadService:
         await self.manager.cleanup()
 
 
+class LibraryService:
+    """
+    Service for managing the local library.
+    """
+    
+    def __init__(self, indexer: Optional[LibraryIndexer] = None):
+        self.indexer = indexer or get_indexer()
+    
+    def scan_library(self, force: bool = False) -> List[ModelEntry]:
+        """Scan library and return all models."""
+        return self.indexer.scan(force=force)
+    
+    def get_all_models(self) -> List[ModelEntry]:
+        """Get all indexed models."""
+        return self.indexer.get_all_models()
+    
+    def get_model(self, model_id: str) -> Optional[ModelEntry]:
+        """Get specific model."""
+        return self.indexer.get_model(model_id)
+    
+    def get_total_size(self) -> int:
+        """Get total library size in bytes."""
+        return self.indexer.get_total_size()
+    
+    def get_model_count(self) -> int:
+        """Get number of models."""
+        return self.indexer.get_model_count()
+    
+    def delete_model(self, model_id: str) -> bool:
+        """Delete a model from library."""
+        return self.indexer.delete_model(model_id)
+    
+    def open_model_folder(self, model_id: str) -> bool:
+        """Open model folder in file explorer."""
+        import subprocess
+        import platform
+        
+        entry = self.indexer.get_model(model_id)
+        if not entry or not entry.path.exists():
+            return False
+        
+        try:
+            system = platform.system()
+            if system == 'Windows':
+                subprocess.run(['explorer', str(entry.path)])
+            elif system == 'Darwin':  # macOS
+                subprocess.run(['open', str(entry.path)])
+            else:  # Linux
+                subprocess.run(['xdg-open', str(entry.path)])
+            return True
+        except Exception as e:
+            logger.error(f"Failed to open folder: {e}")
+            return False
+
+
 class ServiceManager:
     """
     Central manager for all application services.
@@ -216,6 +273,7 @@ class ServiceManager:
         self._search_service: Optional[SearchService] = None
         self._download_service: Optional[DownloadService] = None
         self._download_manager: Optional[DownloadManager] = None
+        self._library_service: Optional[LibraryService] = None
     
     def get_search_service(self, token: Optional[str] = None) -> SearchService:
         """Get or create search service instance."""
@@ -230,6 +288,12 @@ class ServiceManager:
                 self._download_manager = DownloadManager()
             self._download_service = DownloadService(self._download_manager)
         return self._download_service
+    
+    def get_library_service(self) -> LibraryService:
+        """Get or create library service instance."""
+        if self._library_service is None:
+            self._library_service = LibraryService()
+        return self._library_service
     
     async def close_all(self):
         """Close all services."""
